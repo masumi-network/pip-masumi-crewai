@@ -1,6 +1,6 @@
 Metadata-Version: 2.2
 Name: masumi_crewai
-Version: 0.1.1
+Version: 0.1.4
 Summary: A package for easily interacting with remote crews via the Masumi protocol.
 Home-page: https://github.com/masumi-network
 Author: Patrick Tobler
