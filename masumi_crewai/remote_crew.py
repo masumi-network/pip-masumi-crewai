@@ -1,11 +1,7 @@
 import os
 import requests
 import time
-from dotenv import load_dotenv
 from .config import config  # Import the centralized configuration
-
-# Load environment variables
-load_dotenv()
 
 class RemoteCrew:
     def __init__(self):
