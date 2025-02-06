@@ -2,16 +2,12 @@
 
 This package provides an interface for handling payments via the Masumi Node using asynchronous API requests. It simplifies the process of creating payment requests, checking payment statuses, and completing payments on the Cardano blockchain.
 
----
-
 ## Features
 
 - **Asynchronous Payment Handling**: Supports creating, checking, and completing payments.
 - **Configurable Network Selection**: Works on different Cardano networks (default: `PREPROD`).
 - **Automated Payment Monitoring**: Built-in function for tracking payment status.
 - **Secure API Authentication**: Uses API keys for authorization.
-
----
 
 ## Installation
 
@@ -28,8 +24,6 @@ git clone https://github.com/masumi-network/pip-masumi-crewai.git
 cd pip-masumi-crewai
 pip install .
 ```
-
----
 
 ## Usage
 
@@ -50,8 +44,6 @@ amounts = [Amount(amount=1000000, unit="lovelace")]
 payment = Payment(agent_identifier="agent_123", amounts=amounts, config=config)
 ```
 
----
-
 ### 2. Creating a Payment Request
 
 ```python
@@ -63,8 +55,6 @@ async def create_payment():
 asyncio.run(create_payment())
 ```
 
----
-
 ### 3. Checking Payment Status
 
 ```python
@@ -74,8 +64,6 @@ async def check_status():
 
 asyncio.run(check_status())
 ```
-
----
 
 ### 4. Completing the Payment
 
@@ -87,8 +75,6 @@ async def complete():
 
 asyncio.run(complete())
 ```
-
----
 
 ### 5. Monitoring Payment Status
 
@@ -108,8 +94,6 @@ To stop monitoring:
 payment.stop_status_monitoring()
 ```
 
----
-
 ## Configuration
 
 The package requires an API key and service URL for the Masumi Payment Service. These should be stored in a `Config` object:
@@ -123,14 +107,15 @@ config = Config(
 )
 ```
 
----
-
 ## Requirements
 
 - Python 3.7+
 - `aiohttp` for async HTTP requests
 
----
+## Current Smart Contract Addresses
+
+- Preprod: [addr_test1wqarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgagm7r2](https://preprod.cardanoscan.io/address/703a3c0b5ceb4ffad5b6ded7fff1aaeedd82ade6eebf4db14bf2c15809)
+- Mainnet: [addr1wyarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgxq0zv0](https://cardanoscan.io/address/713a3c0b5ceb4ffad5b6ded7fff1aaeedd82ade6eebf4db14bf2c15809)
 
 ## Contributing
 
@@ -139,13 +124,9 @@ Contributions are welcome! To contribute:
 2. Make your changes.
 3. Submit a pull request.
 
----
-
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
-
----
 
 ## Contact
 
