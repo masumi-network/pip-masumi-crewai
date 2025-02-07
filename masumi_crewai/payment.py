@@ -39,8 +39,6 @@ class Payment:
     
     Attributes:
         agent_identifier (str): Unique identifier for the agent making payments
-        payment_contract_address_preprod (str): Smart contract address for preprod network
-        payment_contract_address_mainnet (str): Smart contract address for mainnet
         amounts (List[Amount]): List of payment amounts and their units
         network (str): Network to use ('PREPROD' or 'MAINNET')
         payment_type (str): Type of payment (fixed to 'WEB3_CARDANO_V1')
@@ -48,8 +46,13 @@ class Payment:
         config (Config): Configuration for API endpoints and authentication
     """
 
+    DEFAULT_PREPROD_ADDRESS = "addr_test1wqarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgagm7r2"
+    DEFAULT_MAINNET_ADDRESS = "addr1wyarcz6uad8l44dkmmtllud2amwc9t7tq4szgxq0zv0"
+
     def __init__(self, agent_identifier: str, amounts: List[Amount], 
-                 config: Config, network: str = "PREPROD"):
+                 config: Config, network: str = "PREPROD", 
+                 preprod_address: Optional[str] = None,
+                 mainnet_address: Optional[str] = None):
         """
         Initialize a new Payment instance.
         
@@ -58,11 +61,13 @@ class Payment:
             amounts (List[Amount]): List of payment amounts
             config (Config): Configuration object with API details
             network (str, optional): Network to use. Defaults to "PREPROD"
+            preprod_address (str, optional): Custom preprod contract address
+            mainnet_address (str, optional): Custom mainnet contract address
         """
         logger.info(f"Initializing Payment instance for agent {agent_identifier} on {network} network")
         self.agent_identifier = agent_identifier
-        self.payment_contract_address_preprod = "addr_test1wqarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgagm7r2"
-        self.payment_contract_address_mainnet = "addr1wyarcz6uad8l44dkmmtllud2amwc9t7tq4szgxq0zv0"
+        self.preprod_address = preprod_address or self.DEFAULT_PREPROD_ADDRESS
+        self.mainnet_address = mainnet_address or self.DEFAULT_MAINNET_ADDRESS
         self.amounts = amounts
         self.network = network
         self.payment_type = "WEB3_CARDANO_V1"
@@ -74,6 +79,11 @@ class Payment:
             "Content-Type": "application/json"
         }
         logger.debug(f"Payment amounts configured: {[f'{a.amount} {a.unit}' for a in amounts]}")
+
+    @property
+    def payment_contract_address(self) -> str:
+        """Get the appropriate contract address based on current network."""
+        return self.preprod_address if self.network == "PREPROD" else self.mainnet_address
 
     async def create_payment_request(self) -> Dict[str, Any]:
         """
@@ -92,13 +102,6 @@ class Payment:
         """
         logger.info(f"Creating new payment request for agent {self.agent_identifier}")
         
-        if self.network == "PREPROD":
-            self.payment_contract_address = self.payment_contract_address_preprod
-            logger.debug("Using PREPROD network contract address")
-        else:
-            self.payment_contract_address = self.payment_contract_address_mainnet
-            logger.debug("Using MAINNET network contract address")
-
         future_time = datetime.now(timezone.utc) + timedelta(hours=12)
         formatted_time = future_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         logger.debug(f"Payment deadline set to {formatted_time}")
@@ -147,30 +150,39 @@ class Payment:
             logger.error(f"Network error during payment request: {str(e)}")
             raise
 
-    async def check_payment_status(self) -> Dict[str, Any]:
+    async def check_payment_status(self, limit: int = 10) -> Dict[str, Any]:
         """
         Check the status of all tracked payments.
         
-        Retrieves the current status of all payments being tracked and automatically
-        removes payments that have been confirmed.
-        
+        Args:
+            limit (int, optional): Number of payments to return. Defaults to 10.
+            
         Returns:
-            Dict[str, Any]: Response containing status of all payments
+            Dict[str, Any]: Response containing payment statuses
             
         Raises:
-            ValueError: If no payment IDs are being tracked
-            Exception: If the status check fails
+            ValueError: If no payment IDs available
+            Exception: If status check fails
         """
         if not self.payment_ids:
             logger.warning("Attempted to check payment status with no payment IDs")
             raise ValueError("No payment IDs available")
 
         logger.debug(f"Checking status for payment IDs: {self.payment_ids}")
+        
+        # Build query parameters
+        params = {
+            'network': self.network,
+            'limit': limit,
+            'paymentContractAddress': self.payment_contract_address
+        }
+        
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.config.payment_service_url}/payment/",
-                    headers=self._headers
+                    headers=self._headers,
+                    params=params
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
