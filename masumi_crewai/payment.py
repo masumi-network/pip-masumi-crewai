@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import asyncio
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 import aiohttp
 from .config import Config
 
@@ -14,11 +14,12 @@ class Payment:
     def __init__(self, agent_identifier: str, amounts: List[Amount], 
                  config: Config, network: str = "PREPROD"):
         self.agent_identifier = agent_identifier
-        self.payment_contract_address = "addr_test1wrm4l7k9qgw9878ymvw223u45fje48tnhqsxk2tewe47z7se03mca"
+        self.payment_contract_address_preprod = "addr_test1wqarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgagm7r2"
+        self.payment_contract_address_mainnet = "addr1wyarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgxq0zv0"
         self.amounts = amounts
         self.network = network
         self.payment_type = "WEB3_CARDANO_V1"
-        self.payment_id: Optional[str] = None
+        self.payment_ids: Set[str] = set()  # Store multiple payment IDs
         self._status_check_task: Optional[asyncio.Task] = None
         self.config = config
         self._headers = {
@@ -26,14 +27,22 @@ class Payment:
             "Content-Type": "application/json"
         }
 
-    async def create_payment_request(self, submit_result_time: str) -> Dict[str, Any]:
+    async def create_payment_request(self) -> Dict[str, Any]:
+        if self.network == "PREPROD":
+            self.payment_contract_address = self.payment_contract_address_preprod
+        else:
+            self.payment_contract_address = self.payment_contract_address_mainnet
+
+        future_time = datetime.now(timezone.utc) + timedelta(hours=12)
+        formatted_time = future_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
         payload = {
             "agentIdentifier": self.agent_identifier,
             "network": self.network,
             "paymentContractAddress": self.payment_contract_address,
             "amounts": [{"amount": amt.amount, "unit": amt.unit} for amt in self.amounts],
             "paymentType": self.payment_type,
-            "submitResultTime": submit_result_time
+            "submitResultTime": formatted_time
         }
 
         async with aiohttp.ClientSession() as session:
@@ -52,31 +61,42 @@ class Payment:
                     raise Exception(f"Payment request failed: {await response.text()}")
                 
                 result = await response.json()
-                self.payment_id = result["data"]["identifier"]
+                result["submitResultTime"] = formatted_time
+                new_payment_id = result["data"]["identifier"]
+                self.payment_ids.add(new_payment_id)
                 return result
 
     async def check_payment_status(self) -> Dict[str, Any]:
-        if not self.payment_id:
-            raise ValueError("No payment ID available")
+        if not self.payment_ids:
+            raise ValueError("No payment IDs available")
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"{self.config.payment_service_url}/payment/{self.payment_id}",
+                f"{self.config.payment_service_url}/payment/",
                 headers=self._headers
             ) as response:
                 if response.status != 200:
                     raise Exception(f"Status check failed: {await response.text()}")
-                return await response.json()
+                
+                result = await response.json()
+                
+                # Remove completed payments from tracking
+                payments = result.get("data", {}).get("payments", [])
+                for payment in payments:
+                    if payment["status"] == "PaymentDone" and payment["identifier"] in self.payment_ids:
+                        self.payment_ids.remove(payment["identifier"])
+                
+                return result
 
-    async def complete_payment(self, hash: str) -> Dict[str, Any]:
-        if not self.payment_id:
-            raise ValueError("No payment ID available. Create payment request first.")
+    async def complete_payment(self, payment_id: str, hash: str) -> Dict[str, Any]:
+        if payment_id not in self.payment_ids:
+            raise ValueError(f"Payment ID {payment_id} not found in tracked payments")
 
         payload = {
             "network": self.network,
             "paymentContractAddress": self.payment_contract_address,
             "hash": hash,
-            "identifier": self.payment_id
+            "identifier": payment_id
         }
 
         async with aiohttp.ClientSession() as session:
@@ -94,15 +114,20 @@ class Payment:
                 if response.status != 200:
                     raise Exception(f"Payment completion failed: {await response.text()}")
                 
-                return await response.json()
+                result = await response.json()
+                if result.get("data", {}).get("status") == "PaymentDone":
+                    self.payment_ids.remove(payment_id)
+                return result
 
     async def start_status_monitoring(self, callback=None):
         async def monitor():
-            while True:
+            while self.payment_ids:  # Keep monitoring as long as there are pending payments
                 try:
                     status = await self.check_payment_status()
                     if callback:
                         await callback(status)
+                    if not self.payment_ids:  # Stop if all payments are done
+                        break
                     await asyncio.sleep(60)
                 except Exception as e:
                     print(f"Status monitoring error: {e}")
