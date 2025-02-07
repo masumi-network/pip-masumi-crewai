@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="masumi_crewai",
-    version="0.1.10",
+    version="0.1.13",
     packages=find_packages(),
     install_requires=[
         "requests>=2.25.0",

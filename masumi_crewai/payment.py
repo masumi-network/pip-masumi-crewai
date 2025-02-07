@@ -285,42 +285,61 @@ class Payment:
             logger.error("Invalid callback provided to status monitoring")
             raise ValueError("Callback must be a callable function")
 
+        # Stop any existing monitoring task
+        if self._status_check_task and not self._status_check_task.done():
+            logger.info("Stopping existing monitoring task")
+            self._status_check_task.cancel()
+            try:
+                await self._status_check_task
+            except asyncio.CancelledError:
+                pass
+
         logger.info("Starting payment status monitoring")
 
         async def monitor():
-            while True:
-                try:
+            logger.info("Monitor function started")  # Debug log to verify function start
+            try:
+                while True:
                     if not self.payment_ids:
                         logger.debug("No payments to monitor, waiting...")
                         await asyncio.sleep(60)
                         continue
 
                     logger.debug("Checking payment statuses...")
-                    response = await self.check_payment_status()
-                    payments = response.get("data", {}).get("payments", [])
-                    
-                    for payment in payments:
-                        payment_id = payment.get("identifier")
-                        status = payment.get("status")
+                    try:
+                        response = await self.check_payment_status()
+                        payments = response.get("data", {}).get("payments", [])
                         
-                        if payment_id in self.payment_ids:
-                            logger.debug(f"Payment {payment_id} status: {status}")
-                            if status == "CONFIRMED":
-                                logger.info(f"Payment {payment_id} confirmed, executing callback")
-                                try:
-                                    await callback(payment_id)
-                                except Exception as e:
-                                    logger.error(f"Error in callback for payment {payment_id}: {str(e)}")
-                                self.payment_ids.remove(payment_id)
-                                logger.debug(f"Payment {payment_id} removed from tracking")
+                        for payment in payments:
+                            payment_id = payment.get("identifier")
+                            status = payment.get("status")
+                            
+                            if payment_id in self.payment_ids:
+                                logger.debug(f"Payment {payment_id} status: {status}")
+                                if status == "CONFIRMED":
+                                    logger.info(f"Payment {payment_id} confirmed, executing callback")
+                                    try:
+                                        await callback(payment_id)
+                                    except Exception as e:
+                                        logger.error(f"Error in callback for payment {payment_id}: {str(e)}")
+                                    self.payment_ids.remove(payment_id)
+                                    logger.debug(f"Payment {payment_id} removed from tracking")
 
+                    except Exception as e:
+                        logger.error(f"Error checking payment status: {str(e)}")
+                    
                     await asyncio.sleep(60)
-                except Exception as e:
-                    logger.error(f"Error in status monitoring: {str(e)}")
-                    await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                logger.info("Payment monitoring task cancelled")
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error in monitoring task: {str(e)}")
+                raise
 
-        self._status_check_task = asyncio.create_task(monitor())
-        logger.info("Status monitoring task started")
+        # Create and store the task in the event loop
+        loop = asyncio.get_event_loop()
+        self._status_check_task = loop.create_task(monitor())
+        logger.info("Status monitoring task created and started")
 
     def stop_status_monitoring(self) -> None:
         """
