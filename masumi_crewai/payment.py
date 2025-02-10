@@ -46,8 +46,8 @@ class Payment:
         config (Config): Configuration for API endpoints and authentication
     """
 
-    DEFAULT_PREPROD_ADDRESS = "addr_test1wqarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgagm7r2"
-    DEFAULT_MAINNET_ADDRESS = "addr1wyarcz6uad8l44dkmmtllud2amwc9t7tq4szgxq0zv0"
+    DEFAULT_PREPROD_ADDRESS = "addr_test1wqwmd4vt6eymlqf53rlpzcjm9k424tz39fjwstfnyz96raq53l3x2"
+    DEFAULT_MAINNET_ADDRESS = "addr1wywmd4vt6eymlqf53rlpzcjm9k424tz39fjwstfnyz96raq0etdf0"
 
     def __init__(self, agent_identifier: str, amounts: List[Amount], 
                  config: Config, network: str = "PREPROD", 
@@ -141,7 +141,7 @@ class Payment:
                     
                     result = await response.json()
                     result["submitResultTime"] = formatted_time
-                    new_payment_id = result["data"]["identifier"]
+                    new_payment_id = result["data"]["blockchainIdentifier"]
                     self.payment_ids.add(new_payment_id)
                     logger.info(f"Payment request created successfully. Payment ID: {new_payment_id}")
                     logger.debug(f"Full payment response: {result}")
@@ -194,7 +194,7 @@ class Payment:
                     
                     payments = result.get("data", {}).get("payments", [])
                     for payment in payments:
-                        payment_id = payment["identifier"]
+                        payment_id = payment["blockchainIdentifier"]
                         status = payment["status"]
                         if payment_id in self.payment_ids:
                             logger.debug(f"Payment {payment_id} status: {status}")
