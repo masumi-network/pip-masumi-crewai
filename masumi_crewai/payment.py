@@ -46,8 +46,8 @@ class Payment:
         config (Config): Configuration for API endpoints and authentication
     """
 
-    DEFAULT_PREPROD_ADDRESS = "addr_test1wqwmd4vt6eymlqf53rlpzcjm9k424tz39fjwstfnyz96raq53l3x2"
-    DEFAULT_MAINNET_ADDRESS = "addr1wywmd4vt6eymlqf53rlpzcjm9k424tz39fjwstfnyz96raq0etdf0"
+    DEFAULT_PREPROD_ADDRESS = "addr_test1wqv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac2jqve7"
+    DEFAULT_MAINNET_ADDRESS = "addr1wyv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac365skm"
 
     def __init__(self, agent_identifier: str, amounts: List[Amount], 
                  config: Config, network: str = "PREPROD", 
@@ -195,7 +195,9 @@ class Payment:
                     payments = result.get("data", {}).get("payments", [])
                     for payment in payments:
                         payment_id = payment["blockchainIdentifier"]
-                        status = payment["status"]
+                        status = payment["CurrentStatus"]["status"]
+                        logger.debug(f"Received status response: {status}")
+
                         if payment_id in self.payment_ids:
                             logger.debug(f"Payment {payment_id} status: {status}")
                             if status == "CONFIRMED":
