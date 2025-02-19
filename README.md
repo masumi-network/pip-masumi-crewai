@@ -1,91 +1,79 @@
-# Masumi Crewai Python Package
+# Masumi CrewAI Payment Module
 
-This package provides an interface for handling payments via the Masumi Node using asynchronous API requests. It simplifies the process of creating payment requests, checking payment statuses, and completing payments on the Cardano blockchain.
+This repository provides an implementation of Masumi blockchain-based payments, enabling AI agents using CrewAI to interact with the Masumi network for seamless payments, transaction logging, and monitoring.
 
-## Features
+## 🚀 Installation
 
-- **Asynchronous Payment Handling**: Supports creating, checking, and completing payments.
-- **Configurable Network Selection**: Works on different Cardano networks (default: `PREPROD`).
-- **Automated Payment Monitoring**: Built-in function for tracking payment status.
-- **Secure API Authentication**: Uses API keys for authorization.
-
-## Installation
-
-To install the package, use:
+To install the package, ensure you have Python 3.8+ and `pip` installed. Then, run:
 
 ```bash
-pip install masumi-crewai
+pip install pip-masumi-crewai
 ```
 
-Or install from source:
+## 🔧 Usage
 
-```bash
-git clone https://github.com/masumi-network/pip-masumi-crewai.git
-cd pip-masumi-crewai
-pip install .
-```
+The `Payment` class in `payment.py` provides functionality to send and track payments on the Cardano blockchain using the Masumi network.
 
-## Usage
-
-### 1. Importing and Configuring the Payment Client
+### Importing and Initializing
 
 ```python
-from masumi_crewai import Payment, Amount
+from masumi_crewai.payment import Payment, Amount
 from masumi_crewai.config import Config
-import asyncio
 
 # Initialize configuration
-config = Config(payment_api_key="your_api_key", payment_service_url="https://api.masumi.network")
+config = Config(payment_api_key="your_api_key_here", payment_service_url="https://api.masumi.network")
 
-# Define the payment amount
+# Define payment amounts
 amounts = [Amount(amount=1000000, unit="lovelace")]
 
-# Create a Payment instance
+# Initialize Payment instance
 payment = Payment(agent_identifier="agent_123", amounts=amounts, config=config)
 ```
 
-### 2. Creating a Payment Request
+### Creating a Payment Request
 
 ```python
-async def create_payment():
-    submit_time = "2025-02-05T12:00:00Z"  # Example timestamp
-    response = await payment.create_payment_request(submit_result_time=submit_time)
-    print(response)
+import asyncio
 
-asyncio.run(create_payment())
+async def main():
+    response = await payment.create_payment_request()
+    print(f"Payment Request Created: {response}")
+
+asyncio.run(main())
 ```
 
-### 3. Checking Payment Status
+### Checking Payment Status
 
 ```python
 async def check_status():
     status = await payment.check_payment_status()
-    print(status)
+    print(f"Payment Status: {status}")
 
 asyncio.run(check_status())
 ```
 
-### 4. Completing the Payment
+### Completing a Payment
 
 ```python
 async def complete():
-    tx_hash = "your_transaction_hash_here"
-    result = await payment.complete_payment(hash=tx_hash)
-    print(result)
+    transaction_hash = "your_transaction_hash_here"
+    payment_id = "your_payment_id_here"
+    response = await payment.complete_payment(payment_id, transaction_hash)
+    print(f"Payment Completed: {response}")
 
 asyncio.run(complete())
 ```
 
-### 5. Monitoring Payment Status
+### Monitoring Payments
 
 ```python
-async def monitor_status():
-    async def callback(status):
-        print("Payment status update:", status)
+async def payment_callback(payment_id):
+    print(f"Payment {payment_id} confirmed!")
 
-    await payment.start_status_monitoring(callback)
+async def start_monitoring():
+    await payment.start_status_monitoring(payment_callback)
 
-asyncio.run(monitor_status())
+asyncio.run(start_monitoring())
 ```
 
 To stop monitoring:
@@ -94,40 +82,34 @@ To stop monitoring:
 payment.stop_status_monitoring()
 ```
 
-## Configuration
+## 🧪 Running Tests
 
-The package requires an API key and service URL for the Masumi Payment Service. These should be stored in a `Config` object:
+To ensure everything is working as expected, you can run the test suite using:
 
-```python
-from masumi_crewai.config import Config
-
-config = Config(
-    payment_api_key="your_api_key_here",
-    payment_service_url="https://api.masumi.network"
-)
+```bash
+pytest
 ```
 
-## Requirements
+Make sure you have `pytest` installed:
 
-- Python 3.7+
-- `aiohttp` for async HTTP requests
+```bash
+pip install pytest
+```
 
-## Current Smart Contract Addresses
+Then, execute:
 
-- Preprod: [addr_test1wqarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgagm7r2](https://preprod.cardanoscan.io/address/703a3c0b5ceb4ffad5b6ded7fff1aaeedd82ade6eebf4db14bf2c15809)
-- Mainnet: [addr1wyarcz6uad8l44dkmmtllud2amwc9t0xa6l5mv2t7tq4szgxq0zv0](https://cardanoscan.io/address/713a3c0b5ceb4ffad5b6ded7fff1aaeedd82ade6eebf4db14bf2c15809)
+```bash
+pytest tests/
+```
 
-## Contributing
+## 📖 Documentation
 
-Contributions are welcome! To contribute:
-1. Fork the repository.
-2. Make your changes.
-3. Submit a pull request.
+For more details, check out the official Masumi documentation:
 
-## License
+📚 [Masumi Docs](https://www.docs.masumi.network/)
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+## 🌐 Masumi Network
 
-## Contact
+For more information about the Masumi Network and its capabilities, visit:
 
-For any questions or issues, please open an issue on the [GitHub repository](https://github.com/masumi-network/pip-masumi-crewai).
+🔗 [Masumi Website](https://www.masumi.network/)
