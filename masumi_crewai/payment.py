@@ -40,7 +40,7 @@ class Payment:
     Attributes:
         agent_identifier (str): Unique identifier for the agent making payments
         amounts (List[Amount]): List of payment amounts and their units
-        network (str): Network to use ('PREPROD' or 'MAINNET')
+        network (str): Network to use ('Preprod' or 'Mainnet')
         payment_type (str): Type of payment (fixed to 'WEB3_CARDANO_V1')
         payment_ids (Set[str]): Set of active payment IDs being tracked
         config (Config): Configuration for API endpoints and authentication
@@ -48,11 +48,13 @@ class Payment:
 
     DEFAULT_PREPROD_ADDRESS = "addr_test1wqv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac2jqve7"
     DEFAULT_MAINNET_ADDRESS = "addr1wyv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac365skm"
+    DEFAULT_PURCHASER_IDENTIFIER = "identifier1234567"
 
     def __init__(self, agent_identifier: str, amounts: List[Amount], 
-                 config: Config, network: str = "PREPROD", 
+                 config: Config, network: str = "Preprod", 
                  preprod_address: Optional[str] = None,
-                 mainnet_address: Optional[str] = None):
+                 mainnet_address: Optional[str] = None,
+                 identifier_from_purchaser: str = DEFAULT_PURCHASER_IDENTIFIER):
         """
         Initialize a new Payment instance.
         
@@ -63,6 +65,8 @@ class Payment:
             network (str, optional): Network to use. Defaults to "PREPROD"
             preprod_address (str, optional): Custom preprod contract address
             mainnet_address (str, optional): Custom mainnet contract address
+            identifier_from_purchaser (str): Identifier provided by purchaser. 
+                                           Defaults to 'identifier_from_purchaser_default'
         """
         logger.info(f"Initializing Payment instance for agent {agent_identifier} on {network} network")
         self.agent_identifier = agent_identifier
@@ -70,8 +74,9 @@ class Payment:
         self.mainnet_address = mainnet_address or self.DEFAULT_MAINNET_ADDRESS
         self.amounts = amounts
         self.network = network
-        self.payment_type = "WEB3_CARDANO_V1"
+        self.payment_type = "Web3CardanoV1"
         self.payment_ids: Set[str] = set()
+        self.identifier_from_purchaser = identifier_from_purchaser
         self._status_check_task: Optional[asyncio.Task] = None
         self.config = config
         self._headers = {
@@ -79,11 +84,12 @@ class Payment:
             "Content-Type": "application/json"
         }
         logger.debug(f"Payment amounts configured: {[f'{a.amount} {a.unit}' for a in amounts]}")
+        logger.debug(f"Using purchaser identifier: {self.identifier_from_purchaser}")
 
     @property
     def payment_contract_address(self) -> str:
         """Get the appropriate contract address based on current network."""
-        return self.preprod_address if self.network == "PREPROD" else self.mainnet_address
+        return self.preprod_address if self.network == "Preprod" else self.mainnet_address
 
     async def create_payment_request(self) -> Dict[str, Any]:
         """
@@ -112,8 +118,10 @@ class Payment:
             "paymentContractAddress": self.payment_contract_address,
             "amounts": [{"amount": amt.amount, "unit": amt.unit} for amt in self.amounts],
             "paymentType": self.payment_type,
-            "submitResultTime": formatted_time
+            "submitResultTime": formatted_time,
+            "identifierFromPurchaser": self.identifier_from_purchaser
         }
+
         logger.debug(f"Payment request payload prepared: {payload}")
 
         try:
@@ -195,7 +203,7 @@ class Payment:
                     payments = result.get("data", {}).get("payments", [])
                     for payment in payments:
                         payment_id = payment["blockchainIdentifier"]
-                        status = payment["CurrentStatus"]["status"]
+                        status = payment["NextAction"]["requestedAction"]
                         logger.debug(f"Received status response: {status}")
 
                         if payment_id in self.payment_ids:

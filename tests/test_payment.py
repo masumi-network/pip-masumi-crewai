@@ -2,11 +2,6 @@ import os
 import logging
 
 # Set mock environment variables BEFORE any other imports
-os.environ["REGISTRY_SERVICE_URL"] = "http://mock-registry"
-os.environ["REGISTRY_API_KEY"] = "mock-registry-key"
-os.environ["PAYMENT_SERVICE_URL"] = "http://localhost:3001/api/v1"
-os.environ["PAYMENT_API_KEY"] = "patricktobler123456789"
-os.environ["CONTRACT_ADDRESS"] = "mock-contract-address"
 
 # Configure logging before any imports
 logging.basicConfig(
@@ -30,14 +25,14 @@ def payment():
     logger.info("Creating payment fixture")
     config = Config(
         payment_service_url="http://localhost:3001/api/v1",
-        payment_api_key="patricktobler123456789"
+        payment_api_key="abcdef_this_should_be_very_secure"
     )
     amounts = [Amount(amount="5000000", unit="lovelace")]
     payment = Payment(
-        agent_identifier="dcdf2c533510e865e3d7e0f0e5537c7a176dd4dc1df69e83a703976b16a51f4536884829c1156cdb1110c1a70c0f97ff06036083f7e23a1346418517",
+        agent_identifier="dcdf2c533510e865e3d7e0f0e5537c7a176dd4dc1df69e83a703976b02e8980383e6173ac6e2f55e91b6e5ffa3a2ea8d17c00a381e4cf1f4541a1dc9",
         amounts=amounts,
         config=config,
-        network="PREPROD"
+        network="Preprod"
     )
     logger.debug(f"Payment fixture created with agent: {payment.agent_identifier}")
     return payment
@@ -84,9 +79,9 @@ async def test_check_existing_payment_status(payment):
     for payment_status in status_result["data"]["payments"]:
         if payment_status["blockchainIdentifier"] == payment_id:
             payment_found = True
-            logger.info(f"Found payment status: {payment_status["CurrentStatus"]["status"]}")
+            logger.info(f"Found payment status: {payment_status["NextAction"]["requestedAction"]}")
             # Verify it has the expected fields
-            assert "status" in payment_status["CurrentStatus"]
+            assert "requestedAction" in payment_status["NextAction"]
             break
     
     assert payment_found, f"Payment with ID {payment_id} not found in status response"
