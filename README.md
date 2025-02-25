@@ -87,19 +87,13 @@ payment.stop_status_monitoring()
 To ensure everything is working as expected, you can run the test suite using:
 
 ```bash
-pytest
+pytest tests/test_masumi.py -v -s
 ```
 
 Make sure you have `pytest` installed:
 
 ```bash
 pip install pytest
-```
-
-Then, execute:
-
-```bash
-pytest tests/
 ```
 
 ## 📖 Documentation
