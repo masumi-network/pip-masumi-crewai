@@ -1,6 +1,7 @@
 import os
 import logging
 import sys
+from datetime import datetime, timezone, timedelta
 
 # Force logging to stdout
 for handler in logging.root.handlers[:]:
@@ -21,10 +22,10 @@ logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
 import pytest
 import asyncio
-from datetime import datetime, timezone
 from masumi_crewai.registry import Agent
 from masumi_crewai.payment import Payment, Amount
 from masumi_crewai.config import Config
+from masumi_crewai.purchase import Purchase, PurchaseAmount
 
 # Create a test session marker
 logger = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ async def test_check_registration_status(test_agent):
     agent = await test_agent
     print_test_separator("Registration Status Check Test")
     
-    MAX_RETRIES = 10
+    MAX_RETRIES = 1
     RETRY_DELAY = 60  # seconds
     
     # Get the wallet vkey
@@ -134,10 +135,8 @@ async def test_check_registration_status(test_agent):
             # Verify our agent exists in the list
             agent_found = False
             for asset in result["data"]["assets"]:
-                if asset["metadata"]["name"] == agent.name:
+                if asset["name"] == agent.name and asset["state"] == "RegistrationConfirmed":
                     agent_found = True
-                    logger.info(f"Found agent in registration status: {agent.name}")
-                    logger.debug(f"Agent metadata: {asset['metadata']}")
                     break
             
             if agent_found:
@@ -156,31 +155,46 @@ async def test_check_registration_status(test_agent):
     # If we get here, all retries failed
     raise AssertionError(f"Agent {agent.name} not found in registration status after {MAX_RETRIES} attempts")
 
+# At the module level, add a variable to store the purchaser ID
+_purchaser_id = None
+
 @pytest.fixture
 def payment():
+    global _purchaser_id
     logger.info("Creating payment fixture")
     config = Config(
         payment_service_url="http://localhost:3001/api/v1",
         payment_api_key="abcdef_this_should_be_very_secure"
     )
-    amounts = [Amount(amount="5000000", unit="lovelace")]
+    amounts = [Amount(amount="20000000", unit="lovelace")]
     
     # Try to get agent ID from registration test, use fallback if not available
     try:
         agent_id = test_register_agent.agent_id
         logger.info(f"Using agent ID from registration: {agent_id}")
     except AttributeError:
-        agent_id = "dcdf2c533510e865e3d7e0f0e5537c7a176dd4dc1df69e83a703976b02e8980383e6173ac6e2f55e91b6e5ffa3a2ea8d17c00a381e4cf1f4541a1dc9"  # Fallback ID
+        agent_id = "0520e542b4704586b7899e8af207501fd1cfb4d12fc419ede7986de812ef8e159469109820efb7510d1d02482148a5fedd4f1fab05d9cd12b411a4e7"  # Fallback ID
         logger.warning(f"Registration test not run, using fallback agent ID: {agent_id}")
     
-    payment = Payment(
+    # Create unique identifier for this purchaser (15-25 chars) using random numbers
+    if _purchaser_id is None:
+        import random
+        random_id = ''.join([str(random.randint(0, 9)) for _ in range(15)])
+        _purchaser_id = f"pur_{random_id}"
+    
+    logger.info(f"Using purchaser identifier: {_purchaser_id} (length: {len(_purchaser_id)})")
+    
+    payment_obj = Payment(
         agent_identifier=agent_id,
         amounts=amounts,
         config=config,
-        network="Preprod"
+        network="Preprod",
+        identifier_from_purchaser=_purchaser_id
     )
-    logger.debug(f"Payment fixture created with agent: {payment.agent_identifier}")
-    return payment
+    
+    # No need to store on the fixture anymore
+    logger.debug(f"Payment fixture created with agent: {payment_obj.agent_identifier}")
+    return payment_obj
 
 @pytest.mark.asyncio
 async def test_create_payment_request_success(payment):
@@ -198,8 +212,10 @@ async def test_create_payment_request_success(payment):
     blockchain_id = result["data"]["blockchainIdentifier"]
     assert blockchain_id in payment.payment_ids
     
-    # Store the ID for the next test
+    # Store the ID and time values for the next tests
     test_create_payment_request_success.last_payment_id = blockchain_id
+    test_create_payment_request_success.time_values = result["time_values"]
+    logger.info(f"Stored time values: {result['time_values']}")
     
     logger.info(f"Waiting {DELAY_AFTER_PAYMENT_CREATE} seconds before next test...")
     await asyncio.sleep(DELAY_AFTER_PAYMENT_CREATE)
@@ -219,7 +235,7 @@ async def test_check_existing_payment_status(payment):
     
     # Check the payment status
     status_result = await payment.check_payment_status()
-    logger.debug(f"Status check result: {status_result}")
+    logger.debug(f"Status check result.")
     
     # Verify the response
     assert "data" in status_result
@@ -237,3 +253,93 @@ async def test_check_existing_payment_status(payment):
     
     assert payment_found, f"Payment with ID {payment_id} not found in status response"
     logger.info("Payment status check test passed successfully")
+
+@pytest.mark.asyncio
+async def test_create_purchase_request(test_agent):
+    global _purchaser_id
+    """Test creating a purchase request"""
+    print_test_separator("Purchase Request Test")
+    agent = await test_agent
+    
+    logger.info("Setting up purchase request")
+    
+    # Get the seller vkey (same as we use for registration)
+    seller_vkey = await agent.get_selling_wallet_vkey()
+    logger.debug(f"Using seller vkey: {seller_vkey}")
+    
+    # Create purchase amounts
+    amounts = [
+        PurchaseAmount(amount="20000000", unit="lovelace")
+    ]
+    logger.debug(f"Purchase amounts: {amounts}")
+    
+    # Use the global purchaser ID
+    if _purchaser_id is None:
+        import random
+        random_id = ''.join([str(random.randint(0, 9)) for _ in range(15)])
+        _purchaser_id = f"pur_{random_id}"
+        logger.warning(f"Generated new purchaser identifier: {_purchaser_id}")
+    else:
+        logger.info(f"Using existing purchaser identifier: {_purchaser_id}")
+    
+    # Get blockchain identifier from payment test or use agent_id as fallback
+    try:
+        blockchain_identifier = test_create_payment_request_success.last_payment_id
+        logger.info(f"Using blockchain identifier from payment test.")
+    except AttributeError:
+            logger.warning(f"Problem with payment test.")
+    # Get agent_id for agent_identifier parameter
+    try:
+        agent_id = test_register_agent.agent_id
+        logger.info(f"Using agent ID from registration: {agent_id}")
+    except AttributeError:
+        agent_id = "0520e542b4704586b7899e8af207501fd1cfb4d12fc419ede7986de812ef8e159469109820efb7510d1d02482148a5fedd4f1fab05d9cd12b411a4e7"
+        logger.warning(f"Registration test not run, using fallback agent ID: {agent_id}")
+    
+    # Get time values from previous payment test or generate new ones if not available
+    try:
+        time_values = test_create_payment_request_success.time_values
+        logger.info(f"Using time values from payment test: {time_values}")
+        submit_result_time = int(time_values["submitResultTime"])
+        unlock_time = int(time_values["unlockTime"])
+        external_dispute_unlock_time = int(time_values["externalDisputeUnlockTime"])
+    except (AttributeError, KeyError):
+        # If payment test wasn't run or didn't store time values, generate new ones
+        logger.warning("Time values from payment test not available, generating new ones")
+        future_time = int((datetime.now() + timedelta(hours=12)).timestamp())
+        submit_result_time = unlock_time = external_dispute_unlock_time = future_time
+        logger.debug(f"Generated time value: {future_time}")
+    
+    # Create purchase instance
+    purchase = Purchase(
+        config=agent.config,
+        blockchain_identifier=blockchain_identifier,
+        seller_vkey=seller_vkey,
+        amounts=amounts,
+        agent_identifier=agent_id,
+        identifier_from_purchaser=_purchaser_id,
+        submit_result_time=submit_result_time,
+        unlock_time=unlock_time,
+        external_dispute_unlock_time=external_dispute_unlock_time
+    )
+    logger.debug("Purchase instance created")
+    
+    # Create purchase request
+    logger.info("Creating purchase request")
+    result = await purchase.create_purchase_request()
+    logger.debug(f"Purchase request result: {result}")
+    
+    # Verify the response
+    assert "status" in result, "Response missing 'status' field"
+    assert result["status"] == "success", "Status is not 'success'"
+    assert "data" in result, "Response missing 'data' field"
+    assert "id" in result["data"], "Response data missing 'id' field"
+    assert "NextAction" in result["data"], "Response missing NextAction"
+    assert result["data"]["NextAction"]["requestedAction"] == "FundsLockingRequested", \
+        "Unexpected next action"
+    
+    # Store purchase ID for potential future tests
+    test_create_purchase_request.purchase_id = result["data"]["id"]
+    logger.info(f"Purchase request created with ID: {result['data']['id']}")
+    
+    logger.info("Purchase request test completed successfully")

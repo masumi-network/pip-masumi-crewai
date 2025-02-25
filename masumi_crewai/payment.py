@@ -46,15 +46,11 @@ class Payment:
         config (Config): Configuration for API endpoints and authentication
     """
 
-    DEFAULT_PREPROD_ADDRESS = "addr_test1wqv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac2jqve7"
-    DEFAULT_MAINNET_ADDRESS = "addr1wyv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac365skm"
-    DEFAULT_PURCHASER_IDENTIFIER = "identifier1234567"
-
     def __init__(self, agent_identifier: str, amounts: List[Amount], 
                  config: Config, network: str = "Preprod", 
                  preprod_address: Optional[str] = None,
                  mainnet_address: Optional[str] = None,
-                 identifier_from_purchaser: str = DEFAULT_PURCHASER_IDENTIFIER):
+                 identifier_from_purchaser: str = "default_purchaser_id"):
         """
         Initialize a new Payment instance.
         
@@ -70,8 +66,8 @@ class Payment:
         """
         logger.info(f"Initializing Payment instance for agent {agent_identifier} on {network} network")
         self.agent_identifier = agent_identifier
-        self.preprod_address = preprod_address or self.DEFAULT_PREPROD_ADDRESS
-        self.mainnet_address = mainnet_address or self.DEFAULT_MAINNET_ADDRESS
+        self.preprod_address = preprod_address or config.preprod_address
+        self.mainnet_address = mainnet_address or config.mainnet_address
         self.amounts = amounts
         self.network = network
         self.payment_type = "Web3CardanoV1"
@@ -101,6 +97,7 @@ class Payment:
         
         Returns:
             Dict[str, Any]: Response from the payment service containing payment details
+                and the time values (submitResultTime, unlockTime, externalDisputeUnlockTime)
             
         Raises:
             ValueError: If the request is invalid
@@ -148,10 +145,21 @@ class Payment:
                         raise Exception(f"Payment request failed: {error_text}")
                     
                     result = await response.json()
-                    result["submitResultTime"] = formatted_time
                     new_payment_id = result["data"]["blockchainIdentifier"]
                     self.payment_ids.add(new_payment_id)
+                    
+                    # Extract time values from the response
+                    time_values = {
+                        "submitResultTime": result["data"]["submitResultTime"],
+                        "unlockTime": result["data"]["unlockTime"],
+                        "externalDisputeUnlockTime": result["data"]["externalDisputeUnlockTime"]
+                    }
+                    
+                    # Add time values to the result for easy access
+                    result["time_values"] = time_values
+                    
                     logger.info(f"Payment request created successfully. Payment ID: {new_payment_id}")
+                    logger.debug(f"Time values: {time_values}")
                     logger.debug(f"Full payment response: {result}")
                     return result
         except aiohttp.ClientError as e:

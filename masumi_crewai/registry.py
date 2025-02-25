@@ -8,7 +8,7 @@ logger.setLevel(logging.DEBUG)
 
 class Agent:
     DEFAULT_NETWORK = "Preprod"
-    DEFAULT_SMART_CONTRACT_ADDRESS = "addr_test1wqv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac2jqve7"
+    DEFAULT_SMART_CONTRACT_ADDRESS = "addr_test1wzlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgdy4230"
     
     async def get_selling_wallet_vkey(self) -> str:
         """Fetch selling wallet vkey from payment source for the current smart contract address"""
@@ -35,7 +35,7 @@ class Agent:
                         raise ValueError(f"Failed to fetch payment sources: {error_text}")
                     
                     result = await response.json()
-                    logger.debug(f"Received payment sources response: {result}")
+                    logger.debug(f"Received payment sources response.")
                     
                     for source in result["data"]["paymentSources"]:
                         logger.debug(f"Checking payment source with address: {source['smartContractAddress']}")
@@ -77,14 +77,14 @@ class Agent:
                         raise ValueError(f"Status check failed: {error_text}")
                     
                     result = await response.json()
-                    logger.debug(f"Received registration status response: {result}")
+                    logger.debug(f"Received registration status response.")
                     
                     # Verify this agent exists in the response
                     if "data" in result and "assets" in result["data"]:
                         for asset in result["data"]["assets"]:
-                            if asset["metadata"]["name"] == self.name:
+                            if asset["name"] == self.name:
                                 logger.info(f"Found registered agent: {self.name}")
-                                logger.debug(f"Agent metadata: {asset['metadata']}")
+                                logger.debug(f"Agent info: {asset}")
                                 return result
                     
                     logger.warning(f"Agent {self.name} not found in registration status")
@@ -159,10 +159,10 @@ class Agent:
         payload = {
             "network": self.network,
             "smartContractAddress": self.smart_contract_address,
-            "example_output": self.example_output,
+            "exampleOutput": self.example_output,
             "tags": self.tags,
             "name": self.name,
-            "api_url": self.api_url,
+            "apiUrl": self.api_url,
             "description": self.description,
             "author": {
                 "name": self.author_name,
@@ -170,22 +170,22 @@ class Agent:
                 "organization": self.author_organization
             },
             "legal": {
-                "privacy_policy": self.legal_privacy_policy,
+                "privacyPolicy": self.legal_privacy_policy,
                 "terms": self.legal_terms,
                 "other": self.legal_other
             },
+            "sellingWalletVkey": selling_wallet_vkey,
             "capability": {
                 "name": self.capability_name,
                 "version": self.capability_version
             },
-            "requests_per_hour": self.requests_per_hour,
+            "requestsPerHour": self.requests_per_hour,
             "pricing": [
                 {
                     "unit": self.pricing_unit,
                     "quantity": self.pricing_quantity
                 }
-            ],
-            "sellingWalletVkey": selling_wallet_vkey
+            ]
         }
         logger.debug(f"Registration payload prepared: {payload}")
         
