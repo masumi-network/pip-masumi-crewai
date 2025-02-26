@@ -370,4 +370,28 @@ class Payment:
             self._status_check_task.cancel()
             self._status_check_task = None
         else:
-            logger.debug("No monitoring task to stop") 
+            logger.debug("No monitoring task to stop")
+
+    async def check_purchase_status(self, purchase_id: str) -> Dict:
+        """Check the status of a purchase request"""
+        logger.info(f"Checking status for purchase with ID: {purchase_id}")
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.config.payment_service_url}/purchase/{purchase_id}",
+                    headers=self._headers
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Purchase status check failed: {error_text}")
+                        raise ValueError(f"Purchase status check failed: {error_text}")
+                    
+                    result = await response.json()
+                    logger.info("Purchase status check completed successfully")
+                    logger.debug(f"Purchase status response: {result}")
+                    return result
+                
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error during purchase status check: {str(e)}")
+            raise 

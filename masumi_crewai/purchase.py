@@ -77,7 +77,24 @@ class Purchase:
             "externalDisputeUnlockTime": str(self.external_dispute_unlock_time),
             "agentIdentifier": self.agent_identifier
         }
-        logger.info(f"Purchase request payload created")        
+        
+        # Add detailed logging of the complete payload
+        logger.info("Purchase request payload created")
+        logger.debug(f"Full purchase request payload: {payload}")
+        
+        # Log each field separately for easier debugging
+        logger.debug(f"identifierFromPurchaser: {payload['identifierFromPurchaser']}")
+        logger.debug(f"blockchainIdentifier: {payload['blockchainIdentifier']}")
+        logger.debug(f"network: {payload['network']}")
+        logger.debug(f"sellerVkey: {payload['sellerVkey']}")
+        logger.debug(f"smartContractAddress: {payload['smartContractAddress']}")
+        logger.debug(f"amounts: {payload['amounts']}")
+        logger.debug(f"paymentType: {payload['paymentType']}")
+        logger.debug(f"submitResultTime: {payload['submitResultTime']}")
+        logger.debug(f"unlockTime: {payload['unlockTime']}")
+        logger.debug(f"externalDisputeUnlockTime: {payload['externalDisputeUnlockTime']}")
+        logger.debug(f"agentIdentifier: {payload['agentIdentifier']}")
+        
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(

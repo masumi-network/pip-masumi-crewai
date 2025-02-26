@@ -3,6 +3,7 @@ setup.py
 masumi_crewai/__init__.py
 masumi_crewai/config.py
 masumi_crewai/payment.py
+masumi_crewai/purchase.py
 masumi_crewai/registry.py
 masumi_crewai/utils.py
 masumi_crewai.egg-info/PKG-INFO
@@ -11,5 +12,3 @@ masumi_crewai.egg-info/dependency_links.txt
 masumi_crewai.egg-info/requires.txt
 masumi_crewai.egg-info/top_level.txt
 tests/test_masumi.py
-tests/test_payment.py
-tests/test_registry.py
