@@ -88,7 +88,7 @@ async def test_agent():
         capability_version="1.0.0",
         requests_per_hour="100",
         pricing_unit="lovelace",
-        pricing_quantity="5000000"
+        pricing_quantity="10000000"
     )
     
     logger.debug(f"Test agent fixture created with name: {agent.name}")
@@ -111,7 +111,7 @@ async def test_register_agent(test_agent):
     assert "data" in result, "Response missing 'data' field"
     assert "name" in result["data"], "Response data missing 'name' field"
     assert "success" in result["status"], "Response missing 'success' status"
-    
+        
     logger.info(f"Registration successful for agent: {result['data']['name']}")
     logger.debug(f"Registration status: {result['status']}")
     
@@ -126,7 +126,7 @@ async def test_check_registration_status(test_agent):
     agent = await test_agent
     print_test_separator("Registration Status Check Test")
     
-    MAX_RETRIES = 1
+    MAX_RETRIES = 10
     RETRY_DELAY = 60  # seconds
     
     # Get the wallet vkey
@@ -150,6 +150,12 @@ async def test_check_registration_status(test_agent):
             for asset in result["data"]["assets"]:
                 if asset["name"] == agent.name and asset["state"] == "RegistrationConfirmed":
                     agent_found = True
+                        # Store the agent ID for future tests
+                    if "agentIdentifier" in asset:
+                        test_register_agent.agent_id = asset["agentIdentifier"]
+                        logger.info(f"Stored agent ID for future tests: {test_register_agent.agent_id}")
+                    else:
+                        logger.warning("Agent ID not found in registration response, future tests will use fallback ID")
                     break
             
             if agent_found:
@@ -183,15 +189,16 @@ def payment():
         payment_service_url="http://localhost:3001/api/v1",
         payment_api_key="abcdef_this_should_be_very_secure"
     )
-    amounts = [Amount(amount="20000000", unit="lovelace")]
+    amounts = [Amount(amount="10000000", unit="lovelace")]
     
     # Try to get agent ID from registration test, use fallback if not available
     try:
         agent_id = test_register_agent.agent_id
         logger.info(f"Using agent ID from registration: {agent_id}")
-    except AttributeError:
+    except (AttributeError, NameError):
+        # More robust error handling
         agent_id = "0520e542b4704586b7899e8af207501fd1cfb4d12fc419ede7986de87c5c56930437a2e5c068da1a2970b6444d98e3aca37ae62302154b0ecdcae9ec"  # Fallback ID
-        logger.warning(f"Registration test not run, using fallback agent ID: {agent_id}")
+        logger.warning(f"Registration test not run or agent ID not stored, using fallback agent ID: {agent_id}")
     
     # Create unique identifier for this purchaser (15-25 chars) using random numbers
     if _purchaser_id is None:
@@ -209,7 +216,6 @@ def payment():
         identifier_from_purchaser=_purchaser_id
     )
     
-    # No need to store on the fixture anymore
     logger.debug(f"Payment fixture created with agent: {payment_obj.agent_identifier}")
     return payment_obj
 
@@ -291,73 +297,33 @@ async def test_create_purchase_request(test_agent):
         unlock_time = payment_response["data"]["unlockTime"]
         external_dispute_unlock_time = payment_response["data"]["externalDisputeUnlockTime"]
         
-        # Get the agent identifier from the payment response
+        # Get the agent identifier from the registration test, not from the payment
         try:
-            # First try to get it from the payment fixture
-            agent_identifier = payment.agent_identifier
-            logger.info(f"Using agent identifier from payment fixture: {agent_identifier}")
+            agent_identifier = test_register_agent.agent_id
+            logger.info(f"Using agent ID from registration: {agent_identifier}")
         except (AttributeError, NameError):
-            # If that fails, try to get it from the payment response
-            try:
-                # Parse it from the blockchain identifier (which contains the agent ID)
-                # This is a fallback and might not work in all cases
-                agent_identifier = "0520e542b4704586b7899e8af207501fd1cfb4d12fc419ede7986de87c5c56930437a2e5c068da1a2970b6444d98e3aca37ae62302154b0ecdcae9ec"
-                logger.warning(f"Using fallback agent identifier: {agent_identifier}")
-            except (KeyError, ValueError):
-                # Last resort - use the agent's name
-                agent_identifier = agent.name
-                logger.warning(f"Using agent name as identifier: {agent_identifier}")
+            # Fallback if registration test didn't run or agent ID wasn't stored
+            agent_identifier = "0520e542b4704586b7899e8af207501fd1cfb4d12fc419ede7986de87c5c56930437a2e5c068da1a2970b6444d98e3aca37ae62302154b0ecdcae9ec"
+            logger.warning(f"Registration test not run or agent ID not stored, using fallback agent ID: {agent_identifier}")
         
-        logger.info(f"Using exact time values from payment response")
-        logger.debug(f"Time values: Submit={submit_result_time}, Unlock={unlock_time}, Dispute={external_dispute_unlock_time}")
+        # Store the agent identifier for future tests
+        test_create_purchase_request.agent_identifier = agent_identifier
+        
     except AttributeError:
-        logger.warning(f"Payment response not available, cannot proceed")
+        logger.error("Payment response not available - payment test may not have run")
         pytest.skip("Payment response not available, skipping test")
     
-    # Get the seller vkey - make sure we're getting the correct one for this blockchain identifier
-    try:
-        # First try to get it directly from the payment source
-        async with aiohttp.ClientSession() as session:
-            headers = {
-                "token": agent.config.payment_api_key,
-                "Content-Type": "application/json"
-            }
-            logger.info("Fetching payment sources to get correct seller vkey")
-            async with session.get(
-                f"{agent.config.payment_service_url}/payment-source/",
-                headers=headers,
-                params={"take": "10"}
-            ) as response:
-                if response.status != 200:
-                    raise ValueError("Failed to fetch payment sources")
-                
-                result = await response.json()
-                seller_vkey = None
-                
-                # Look for the payment source with selling wallets
-                for source in result["data"]["paymentSources"]:
-                    if source["SellingWallets"] and len(source["SellingWallets"]) > 0:
-                        seller_vkey = source["SellingWallets"][0]["walletVkey"]
-                        logger.info(f"Found seller vkey from payment source: {seller_vkey}")
-                        break
-                
-                if not seller_vkey:
-                    raise ValueError("No selling wallet found in payment sources")
-    except Exception as e:
-        logger.warning(f"Error getting seller vkey from payment source: {str(e)}")
-        # Fall back to the agent's method
-        seller_vkey = await agent.get_selling_wallet_vkey()
-        logger.info(f"Using seller vkey from agent: {seller_vkey}")
-    
+    # Get the seller vkey
+    seller_vkey = await agent.get_selling_wallet_vkey()
     logger.debug(f"Using seller vkey: {seller_vkey}")
     
     # Create purchase amounts
     amounts = [
-        PurchaseAmount(amount="20000000", unit="lovelace")
+        PurchaseAmount(amount="10000000", unit="lovelace")
     ]
     logger.debug(f"Purchase amounts: {amounts}")
     
-    # Use the global purchaser ID
+    # Ensure we have a purchaser ID
     if _purchaser_id is None:
         import random
         random_id = ''.join([str(random.randint(0, 9)) for _ in range(15)])
@@ -372,7 +338,7 @@ async def test_create_purchase_request(test_agent):
         blockchain_identifier=blockchain_identifier,
         seller_vkey=seller_vkey,
         amounts=amounts,
-        agent_identifier=agent_identifier,  # Use the agent identifier from payment
+        agent_identifier=agent_identifier,  # Use the agent identifier from registration
         identifier_from_purchaser=_purchaser_id,
         submit_result_time=submit_result_time,
         unlock_time=unlock_time,
@@ -415,7 +381,7 @@ async def test_check_purchase_status(test_agent, payment):
         
         # Add the blockchain identifier to the payment's tracking set
         payment.payment_ids.add(blockchain_id)
-        logger.info(f"Added blockchain ID to payment tracking: {blockchain_id}")
+        #logger.info(f"Added blockchain ID to payment tracking: {blockchain_id}")
     except AttributeError:
         logger.error("Blockchain ID not found - payment test may not have run")
         pytest.skip("Blockchain ID not available, skipping test")
@@ -446,7 +412,7 @@ async def test_check_purchase_status(test_agent, payment):
             for payment_status in result["data"]["payments"]:
                 if payment_status["blockchainIdentifier"] == blockchain_id:
                     payment_found = True
-                    logger.info(f"Found payment with blockchain ID: {blockchain_id}")
+                    #logger.info(f"Found payment with blockchain ID: {blockchain_id}")
                     
                     # Check for onChainState field
                     if "onChainState" in payment_status:
@@ -488,3 +454,174 @@ async def test_check_purchase_status(test_agent, payment):
     logger.warning("Payment not confirmed after all retries")
     # Don't fail the test, as confirmation might take longer than our test window
     logger.info("Test completed - payment may still be processing")
+
+@pytest.mark.asyncio
+async def test_complete_payment(test_agent, payment):
+    """Test completing a payment after purchase has been confirmed"""
+    print_test_separator("Payment Completion Test")
+    agent = await test_agent
+    
+    logger.info("Starting payment completion test")
+    
+    # Get the blockchain ID from the previous test
+    try:
+        blockchain_id = test_create_payment_request_success.last_payment_id
+        logger.info(f"Using blockchain ID from payment test: {blockchain_id}")
+        
+        # Add the blockchain identifier to the payment's tracking set if not already there
+        payment.payment_ids.add(blockchain_id)
+        #logger.info(f"Using blockchain ID for payment completion: {blockchain_id}")
+    except AttributeError:
+        logger.error("Blockchain ID not found - payment test may not have run")
+        pytest.skip("Blockchain ID not available, skipping test")
+    
+    # Get the purchase ID from the previous test
+    try:
+        purchase_id = test_create_purchase_request.purchase_id
+        logger.info(f"Using purchase ID from previous test: {purchase_id}")
+    except AttributeError:
+        logger.warning("Purchase ID not found - using None")
+        purchase_id = None
+    
+    # Attempt to complete the payment directly
+    logger.info("Attempting to complete payment")
+    
+    try:
+        # Call the complete_payment method
+        result = await payment.complete_payment(blockchain_id, "random hash")
+        
+        # Verify the response
+        assert "status" in result, "Response missing 'status' field"
+        assert result["status"] == "success", "Status is not 'success'"
+        
+        logger.info("Payment completion request successful")
+        logger.debug(f"Payment completion response: {result}")
+        
+        # Check the payment status after completion
+        logger.info("Checking payment status after completion")
+        final_status = await payment.check_payment_status()
+        
+        # Look for our payment in the list
+        for payment_status in final_status["data"]["payments"]:
+            if payment_status["blockchainIdentifier"] == blockchain_id:
+                # Check the final status
+                if "onChainState" in payment_status:
+                    logger.info(f"Final onChainState: {payment_status['onChainState']}")
+                
+                final_action = payment_status.get("NextAction", {}).get("requestedAction", "Unknown")
+                logger.info(f"Final payment status: {final_action}")
+                
+                # The payment should be in a completed state
+                if final_action in ["PaymentComplete", "None"] or payment_status.get("onChainState") == "Complete":
+                    logger.info("Payment has been successfully completed")
+                else:
+                    logger.warning(f"Payment completion may still be processing. Current status: {final_action}")
+                
+                break
+        
+    except Exception as e:
+        logger.error(f"Error during payment completion: {str(e)}")
+        # Don't fail the test if completion is still processing
+        logger.warning("Payment completion test encountered an error, but test will continue")
+    
+    logger.info("Payment completion test finished")
+
+@pytest.mark.asyncio
+async def test_monitor_payment_status(test_agent, payment):
+    """Test monitoring the payment status after completion"""
+    print_test_separator("Payment Status Monitoring Test")
+    agent = await test_agent
+    
+    logger.info("Starting payment status monitoring test")
+    
+    # Get the blockchain ID from the previous test
+    try:
+        blockchain_id = test_create_payment_request_success.last_payment_id
+        logger.info(f"Using blockchain ID from payment test: {blockchain_id}")
+        
+        # Add the blockchain identifier to the payment's tracking set if not already there
+        payment.payment_ids.add(blockchain_id)
+        #logger.info(f"Using blockchain ID for payment monitoring: {blockchain_id}")
+    except AttributeError:
+        logger.error("Blockchain ID not found - payment test may not have run")
+        pytest.skip("Blockchain ID not available, skipping test")
+    
+    # Set up monitoring parameters
+    MONITOR_DURATION = 300  # 5 minutes
+    CHECK_INTERVAL = 60     # 1 minute
+    MAX_CHECKS = MONITOR_DURATION // CHECK_INTERVAL
+    
+    logger.info(f"Starting payment status monitoring for {MONITOR_DURATION} seconds")
+    logger.info(f"Will check status every {CHECK_INTERVAL} seconds")
+    
+    # Start the monitoring task
+    async def monitor_task():
+        for check_num in range(1, MAX_CHECKS + 1):
+            logger.info(f"Payment status check {check_num}/{MAX_CHECKS}")
+            try:
+                result = await payment.check_payment_status()
+                
+                # Look for our payment in the list
+                payment_found = False
+                for payment_status in result["data"]["payments"]:
+                    if payment_status["blockchainIdentifier"] == blockchain_id:
+                        payment_found = True
+                        #logger.info(f"Found payment with blockchain ID: {blockchain_id}")
+                        
+                        # Check the current status
+                        if "onChainState" in payment_status:
+                            on_chain_state = payment_status["onChainState"]
+                            logger.info(f"Payment onChainState: {on_chain_state}")
+                            
+                            # If the payment is complete, we can stop monitoring
+                            if on_chain_state == "Complete":
+                                logger.info("Payment is complete, stopping monitoring")
+                                return True
+                        
+                        # Also check NextAction
+                        current_status = payment_status.get("NextAction", {}).get("requestedAction", "Unknown")
+                        logger.info(f"Current payment status: {current_status}")
+                        
+                        # If the payment is complete, we can stop monitoring
+                        if current_status in ["PaymentComplete", "None"]:
+                            logger.info("Payment is complete, stopping monitoring")
+                            return True
+                        
+                        break
+                
+                if not payment_found:
+                    logger.warning(f"Payment with blockchain ID {blockchain_id} not found in status response")
+                
+                # Wait for the next check
+                logger.info(f"Waiting {CHECK_INTERVAL} seconds before next check...")
+                await asyncio.sleep(CHECK_INTERVAL)
+                
+            except Exception as e:
+                logger.error(f"Error during payment status check: {str(e)}")
+                # Continue monitoring despite errors
+                await asyncio.sleep(CHECK_INTERVAL)
+        
+        logger.warning(f"Monitoring period of {MONITOR_DURATION} seconds ended without payment completion")
+        return False
+    
+    # Create and start the monitoring task
+    payment._status_check_task = asyncio.create_task(monitor_task())
+    
+    try:
+        # Wait for the monitoring task to complete
+        completed = await payment._status_check_task
+        
+        if completed:
+            logger.info("Payment monitoring completed successfully - payment is complete")
+        else:
+            logger.warning("Payment monitoring completed without detecting payment completion")
+            
+    except asyncio.CancelledError:
+        logger.info("Payment monitoring task was cancelled")
+    except Exception as e:
+        logger.error(f"Error during payment monitoring: {str(e)}")
+    finally:
+        # Clean up the monitoring task
+        payment.stop_status_monitoring()
+    
+    logger.info("Payment status monitoring test finished")

@@ -225,61 +225,59 @@ class Payment:
             logger.error(f"Network error during status check: {str(e)}")
             raise
 
-    async def complete_payment(self, payment_id: str, hash: str) -> Dict[str, Any]:
+    async def complete_payment(self, blockchain_identifier: str, submit_result_hash: str) -> Dict[str, Any]:
         """
-        Complete a payment with a transaction hash.
+        Complete a payment by submitting the result hash.
         
         Args:
-            payment_id (str): ID of the payment to complete
-            hash (str): Transaction hash from the blockchain
+            blockchain_identifier (str): The blockchain identifier of the payment to complete
+            submit_result_hash (str): The hash of the submitted result
             
         Returns:
-            Dict[str, Any]: Response confirming payment completion
+            Dict[str, Any]: Response from the payment service
             
         Raises:
-            ValueError: If payment_id is not being tracked or request is invalid
-            Exception: If completion fails
+            ValueError: If the request is invalid
+            Exception: If there's a network or server error
         """
-        logger.info(f"Attempting to complete payment {payment_id} with hash {hash}")
+        logger.info(f"Completing payment with blockchain identifier: {blockchain_identifier}")
         
-        if payment_id not in self.payment_ids:
-            logger.error(f"Payment ID {payment_id} not found in tracked payments")
-            raise ValueError(f"Payment ID {payment_id} not found in tracked payments")
-
+        # Create the payload for the submit-result endpoint
         payload = {
             "network": self.network,
-            "paymentContractAddress": self.payment_contract_address,
-            "hash": hash,
-            "identifier": payment_id
+            "smartContractAddress": self.payment_contract_address,
+            "blockchainIdentifier": blockchain_identifier,
+            "submitResultHash": submit_result_hash
         }
+        
         logger.debug(f"Payment completion payload: {payload}")
-
+        
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.patch(
-                    f"{self.config.payment_service_url}/payment/",
+                logger.debug("Sending payment completion request to API")
+                async with session.post(
+                    f"{self.config.payment_service_url}/payment/submit-result",
                     headers=self._headers,
                     json=payload
                 ) as response:
                     if response.status == 400:
                         error_text = await response.text()
-                        logger.error(f"Bad request during completion: {error_text}")
+                        logger.error(f"Bad request error: {error_text}")
                         raise ValueError(f"Bad request: {error_text}")
                     if response.status == 401:
-                        logger.error("Unauthorized during completion: Invalid API key")
+                        logger.error("Unauthorized: Invalid API key")
                         raise ValueError("Unauthorized: Invalid API key")
                     if response.status == 500:
-                        logger.error("Internal server error during completion")
+                        logger.error("Internal server error from payment service")
                         raise Exception("Internal server error")
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"Payment completion failed: {error_text}")
+                        logger.error(f"Payment completion failed with status {response.status}: {error_text}")
                         raise Exception(f"Payment completion failed: {error_text}")
                     
                     result = await response.json()
-                    if result.get("data", {}).get("status") == "PaymentDone":
-                        logger.info(f"Payment {payment_id} completed successfully")
-                        self.payment_ids.remove(payment_id)
+                    logger.info(f"Payment completion request successful for {blockchain_identifier}")
+                    logger.debug(f"Payment completion response: {result}")
                     return result
         except aiohttp.ClientError as e:
             logger.error(f"Network error during payment completion: {str(e)}")
