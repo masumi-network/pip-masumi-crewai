@@ -326,13 +326,14 @@ class Payment:
                         response = await self.check_payment_status()
                         payments = response.get("data", {}).get("payments", [])
                         
+
                         for payment in payments:
-                            payment_id = payment.get("identifier")
-                            status = payment.get("status")
-                            
+                            payment_id = payment.get("blockchainIdentifier")
+                            payment_status = payment.get("onChainState")
+
                             if payment_id in self.payment_ids:
-                                logger.debug(f"Payment {payment_id} status: {status}")
-                                if status == "CONFIRMED":
+                                logger.debug(f"Payment {payment_id} status: {payment_status}")
+                                if payment_status == "FundsLocked":
                                     logger.info(f"Payment {payment_id} confirmed, executing callback")
                                     try:
                                         await callback(payment_id)
