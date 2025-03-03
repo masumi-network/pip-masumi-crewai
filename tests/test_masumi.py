@@ -88,7 +88,8 @@ async def test_agent():
         capability_version="1.0.0",
         requests_per_hour="100",
         pricing_unit="lovelace",
-        pricing_quantity="10000000"
+        pricing_quantity="10000000",
+        network="Preprod"
     )
     
     logger.debug(f"Test agent fixture created with name: {agent.name}")

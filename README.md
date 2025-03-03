@@ -37,7 +37,8 @@ import asyncio
 
 async def main():
     response = await payment.create_payment_request()
-    print(f"Payment Request Created: {response}")
+    payment_id = response["data"]["blockchainIdentifier"]
+    print(f"Payment Request Created with ID: {payment_id}")
 
 asyncio.run(main())
 ```
@@ -56,9 +57,9 @@ asyncio.run(check_status())
 
 ```python
 async def complete():
-    transaction_hash = "your_transaction_hash_here"
-    payment_id = "your_payment_id_here"
-    response = await payment.complete_payment(payment_id, transaction_hash)
+    blockchain_id = "your_blockchain_identifier_here"
+    submit_result_hash = "your_result_hash_here"
+    response = await payment.complete_payment(blockchain_id, submit_result_hash)
     print(f"Payment Completed: {response}")
 
 asyncio.run(complete())
@@ -66,20 +67,73 @@ asyncio.run(complete())
 
 ### Monitoring Payments
 
+The payment monitoring system automatically tracks the status of all payments and can execute a callback function when a payment is completed.
+
+#### Using Callbacks with Monitoring
+
 ```python
-async def payment_callback(payment_id):
-    print(f"Payment {payment_id} confirmed!")
+# Define a callback function that will be called when a payment completes
+async def payment_completed_callback(payment_id):
+    print(f"🎉 Payment {payment_id} has been completed!")
+    # You can perform additional actions here:
+    # - Update a database
+    # - Send a notification
+    # - Trigger the next step in your workflow
 
 async def start_monitoring():
-    await payment.start_status_monitoring(payment_callback)
+    # Start monitoring with a callback and check every 30 seconds
+    await payment.start_status_monitoring(
+        callback=payment_completed_callback,
+        interval_seconds=30
+    )
+    
+    # Let the monitoring run (in a real application, you might keep it running indefinitely)
+    print("Monitoring started, will run until stopped...")
+    await asyncio.sleep(600)  # Run for 10 minutes
+    
+    # Stop monitoring when done
+    payment.stop_status_monitoring()
 
 asyncio.run(start_monitoring())
 ```
 
-To stop monitoring:
+#### How Monitoring Works
+
+1. When you call `start_status_monitoring()`, a background task is created that periodically checks the status of all payments being tracked.
+
+2. The monitoring system:
+   - Automatically checks all payment IDs in the `payment_ids` set
+   - Removes completed payments from tracking
+   - Calls your callback function when a payment completes
+   - Stops automatically when there are no more payments to monitor
+
+3. The callback function receives the payment ID as a parameter and can be either synchronous or asynchronous.
+
+4. You can stop monitoring at any time by calling `stop_status_monitoring()`.
+
+#### Example with Multiple Payments
 
 ```python
-payment.stop_status_monitoring()
+async def monitor_multiple_payments():
+    # Create first payment
+    result1 = await payment.create_payment_request()
+    payment_id1 = result1["data"]["blockchainIdentifier"]
+    
+    # Create second payment with different identifier
+    payment.identifier_from_purchaser = "another_identifier"
+    result2 = await payment.create_payment_request()
+    payment_id2 = result2["data"]["blockchainIdentifier"]
+    
+    # Start monitoring both payments
+    await payment.start_status_monitoring(
+        callback=payment_completed_callback,
+        interval_seconds=30
+    )
+    
+    # The monitoring will continue until all payments complete or until stopped
+    
+    # To stop monitoring manually:
+    # payment.stop_status_monitoring()
 ```
 
 ## 🧪 Running Tests

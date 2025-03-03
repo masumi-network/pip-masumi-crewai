@@ -6,10 +6,94 @@ from .config import Config
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Define network-specific smart contract addresses
+DEFAULT_PREPROD_CONTRACT_ADDRESS = "addr_test1wzlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgdy4230"
+DEFAULT_MAINNET_CONTRACT_ADDRESS = "addr1wxlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgkvpk72"
+
 class Agent:
-    DEFAULT_NETWORK = "Preprod"
-    DEFAULT_SMART_CONTRACT_ADDRESS = "addr_test1wzlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgdy4230"
+    """
+    Represents an AI agent that can be registered with the Masumi registry.
     
+    This class handles agent registration, status checking, and related operations.
+    """
+    
+    def __init__(
+        self,
+        name: str,
+        config: Config,
+        description: str,
+        example_output: str,
+        tags: List[str],
+        api_url: str,
+        author_name: str,
+        author_contact: str,
+        author_organization: str,
+        legal_privacy_policy: str,
+        legal_terms: str,
+        legal_other: str,
+        capability_name: str,
+        capability_version: str,
+        requests_per_hour: str,
+        pricing_unit: str,
+        pricing_quantity: str,
+        network: str = "Preprod"
+    ):
+        """
+        Initialize a new Agent instance.
+        
+        Args:
+            name (str): Name of the agent (must be unique)
+            config (Config): Configuration for API endpoints and authentication
+            description (str): Description of the agent's capabilities
+            example_output (str): Example of the agent's output
+            tags (List[str]): List of tags describing the agent
+            api_url (str): URL where the agent's API is hosted
+            author_name (str): Name of the agent's author
+            author_contact (str): Contact information for the author
+            author_organization (str): Organization the author belongs to
+            legal_privacy_policy (str): URL to privacy policy
+            legal_terms (str): URL to terms of service
+            legal_other (str): URL to other legal documents
+            capability_name (str): Name of the agent's capability
+            capability_version (str): Version of the agent's capability
+            requests_per_hour (str): Maximum requests per hour
+            pricing_unit (str): Unit for pricing (e.g., "lovelace")
+            pricing_quantity (str): Quantity for pricing
+            network (str, optional): Network to use. Defaults to "Preprod"
+        """
+        self.name = name
+        self.config = config
+        self.description = description
+        self.example_output = example_output
+        self.tags = tags
+        self.api_url = api_url
+        self.author_name = author_name
+        self.author_contact = author_contact
+        self.author_organization = author_organization
+        self.legal_privacy_policy = legal_privacy_policy
+        self.legal_terms = legal_terms
+        self.legal_other = legal_other
+        self.capability_name = capability_name
+        self.capability_version = capability_version
+        self.requests_per_hour = requests_per_hour
+        self.pricing_unit = pricing_unit
+        self.pricing_quantity = pricing_quantity
+        self.network = network
+        
+        # Set the smart contract address based on the network
+        if network.lower() == "mainnet":
+            self.smart_contract_address = DEFAULT_MAINNET_CONTRACT_ADDRESS
+        else:
+            self.smart_contract_address = DEFAULT_PREPROD_CONTRACT_ADDRESS
+            
+        logger.info(f"Initialized agent {name} on {network} network")
+        logger.debug(f"Using smart contract address: {self.smart_contract_address}")
+        
+        self._headers = {
+            "token": config.registry_api_key,
+            "Content-Type": "application/json"
+        }
+
     async def get_selling_wallet_vkey(self) -> str:
         """Fetch selling wallet vkey from payment source for the current smart contract address"""
         logger.info("Fetching selling wallet vkey from payment source")
@@ -93,60 +177,6 @@ class Agent:
         except aiohttp.ClientError as e:
             logger.error(f"Network error while checking registration status: {str(e)}")
             raise
-
-    def __init__(
-        self,
-        config: Config,
-        name: str,
-        api_url: str,
-        description: str,
-        author_name: str,
-        author_contact: str,
-        author_organization: str,
-        legal_privacy_policy: str,
-        legal_terms: str,
-        legal_other: str,
-        capability_name: str,
-        capability_version: str,
-        requests_per_hour: str,
-        pricing_unit: str,
-        pricing_quantity: str,
-        network: str = DEFAULT_NETWORK,
-        smart_contract_address: str = DEFAULT_SMART_CONTRACT_ADDRESS,
-        example_output: str = "example_output",
-        tags: List[str] = None
-    ):
-        self.config = config
-        self.network = network
-        self.smart_contract_address = smart_contract_address
-        self.example_output = example_output
-        self.tags = tags or ["tag1", "tag2"]
-        self.name = name
-        self.api_url = api_url
-        self.description = description
-        self.author_name = author_name
-        self.author_contact = author_contact
-        self.author_organization = author_organization
-        self.legal_privacy_policy = legal_privacy_policy
-        self.legal_terms = legal_terms
-        self.legal_other = legal_other
-        self.capability_name = capability_name
-        self.capability_version = capability_version
-        self.requests_per_hour = requests_per_hour
-        self.pricing_unit = pricing_unit
-        self.pricing_quantity = pricing_quantity
-        
-        self._headers = {
-            "token": config.payment_api_key,
-            "Content-Type": "application/json"
-        }
-        
-        logger.info(f"Initializing Agent instance for {name}")
-        logger.debug(f"Network: {network}")
-        logger.debug(f"Smart contract address: {smart_contract_address}")
-        
-        logger.debug(f"Agent initialized with config URL: {config.payment_service_url}")
-        logger.debug(f"Using payment API key: {'*' * len(config.payment_api_key)}")
 
     async def register(self) -> Dict:
         """Register a new agent with the registry service"""
