@@ -319,7 +319,7 @@ class Payment:
                                 logger.info(f"Payment {payment_id}: Status={status}, OnChainState={on_chain_state}")
                                 
                                 # Check if payment is completed
-                                if status in ["PaymentComplete", "None"] or on_chain_state == "Complete":
+                                if status in ["PaymentComplete", "None"] or on_chain_state == "FundsLocked":
                                     logger.info(f"Payment {payment_id} completed, removing from tracking")
                                     self.payment_ids.remove(payment_id)
                                     
