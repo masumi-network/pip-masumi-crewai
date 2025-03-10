@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Define network-specific smart contract addresses
-DEFAULT_PREPROD_CONTRACT_ADDRESS = "addr_test1wzlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgdy4230"
-DEFAULT_MAINNET_CONTRACT_ADDRESS = "addr1wxlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgkvpk72"
+DEFAULT_PREPROD_CONTRACT_ADDRESS = Config.DEFAULT_PREPROD_ADDRESS
+DEFAULT_MAINNET_CONTRACT_ADDRESS = Config.DEFAULT_MAINNET_ADDRESS
 
 class Agent:
     """
@@ -22,9 +22,9 @@ class Agent:
         name: str,
         config: Config,
         description: str,
-        example_output: str,
+        example_output: List[Dict[str, str]],
         tags: List[str],
-        api_url: str,
+        api_base_url: str,
         author_name: str,
         author_contact: str,
         author_organization: str,
@@ -45,9 +45,9 @@ class Agent:
             name (str): Name of the agent (must be unique)
             config (Config): Configuration for API endpoints and authentication
             description (str): Description of the agent's capabilities
-            example_output (str): Example of the agent's output
+            example_output (List[Dict[str, str]]): List of example outputs with name, url, and mimeType
             tags (List[str]): List of tags describing the agent
-            api_url (str): URL where the agent's API is hosted
+            api_base_url (str): URL where the agent's API is hosted
             author_name (str): Name of the agent's author
             author_contact (str): Contact information for the author
             author_organization (str): Organization the author belongs to
@@ -66,7 +66,7 @@ class Agent:
         self.description = description
         self.example_output = example_output
         self.tags = tags
-        self.api_url = api_url
+        self.api_base_url = api_base_url
         self.author_name = author_name
         self.author_contact = author_contact
         self.author_organization = author_organization
@@ -121,10 +121,12 @@ class Agent:
                     result = await response.json()
                     logger.debug(f"Received payment sources response.")
                     
-                    for source in result["data"]["paymentSources"]:
+                    for source in result["data"]["PaymentSources"]:
                         logger.debug(f"Checking payment source with address: {source['smartContractAddress']}")
                         if source["smartContractAddress"] == self.smart_contract_address:
+                            logger.debug(f"Found matching smart contract address: {source['smartContractAddress']}")
                             if source["SellingWallets"]:
+                                logger.debug(f"Found selling wallets: {source['SellingWallets']}")
                                 vkey = source["SellingWallets"][0]["walletVkey"]
                                 logger.info(f"Found matching selling wallet vkey: {vkey}")
                                 return vkey
@@ -164,8 +166,8 @@ class Agent:
                     logger.debug(f"Received registration status response.")
                     
                     # Verify this agent exists in the response
-                    if "data" in result and "assets" in result["data"]:
-                        for asset in result["data"]["assets"]:
+                    if "data" in result and "Assets" in result["data"]:
+                        for asset in result["data"]["Assets"]:
                             if asset["name"] == self.name:
                                 logger.info(f"Found registered agent: {self.name}")
                                 logger.debug(f"Agent info: {asset}")
@@ -189,33 +191,36 @@ class Agent:
         payload = {
             "network": self.network,
             "smartContractAddress": self.smart_contract_address,
-            "exampleOutput": self.example_output,
-            "tags": self.tags,
+            "ExampleOutputs": self.example_output,
+            "Tags": self.tags,
             "name": self.name,
-            "apiUrl": self.api_url,
+            "apiBaseUrl": self.api_base_url,
             "description": self.description,
-            "author": {
+            "Author": {
                 "name": self.author_name,
                 "contact": self.author_contact,
                 "organization": self.author_organization
             },
-            "legal": {
+            "Legal": {
                 "privacyPolicy": self.legal_privacy_policy,
                 "terms": self.legal_terms,
                 "other": self.legal_other
             },
             "sellingWalletVkey": selling_wallet_vkey,
-            "capability": {
+            "Capability": {
                 "name": self.capability_name,
                 "version": self.capability_version
             },
             "requestsPerHour": self.requests_per_hour,
-            "pricing": [
-                {
-                    "unit": self.pricing_unit,
-                    "quantity": self.pricing_quantity
-                }
-            ]
+            "AgentPricing": {
+                "pricingType": "Fixed",
+                "Pricing": [
+                    {
+                        "unit": self.pricing_unit,
+                        "amount": self.pricing_quantity
+                    }
+                ]
+            }
         }
         logger.debug(f"Registration payload prepared: {payload}")
         

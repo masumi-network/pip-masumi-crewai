@@ -67,7 +67,7 @@ class Purchase:
             "network": self.network,
             "sellerVkey": self.seller_vkey,
             "smartContractAddress": self.smart_contract_address,
-            "amounts": [
+            "Amounts": [
                 {"amount": amt.amount, "unit": amt.unit}
                 for amt in self.amounts
             ],
@@ -88,7 +88,7 @@ class Purchase:
         logger.debug(f"network: {payload['network']}")
         logger.debug(f"sellerVkey: {payload['sellerVkey']}")
         logger.debug(f"smartContractAddress: {payload['smartContractAddress']}")
-        logger.debug(f"amounts: {payload['amounts']}")
+        logger.debug(f"amounts: {payload['Amounts']}")
         logger.debug(f"paymentType: {payload['paymentType']}")
         logger.debug(f"submitResultTime: {payload['submitResultTime']}")
         logger.debug(f"unlockTime: {payload['unlockTime']}")

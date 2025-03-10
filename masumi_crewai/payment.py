@@ -113,7 +113,7 @@ class Payment:
             "agentIdentifier": self.agent_identifier,
             "network": self.network,
             "paymentContractAddress": self.payment_contract_address,
-            "amounts": [{"amount": amt.amount, "unit": amt.unit} for amt in self.amounts],
+            "RequestedFunds": [{"amount": amt.amount, "unit": amt.unit} for amt in self.amounts],
             "paymentType": self.payment_type,
             "submitResultTime": formatted_time,
             "identifierFromPurchaser": self.identifier_from_purchaser
@@ -158,7 +158,7 @@ class Payment:
                     # Add time values to the result for easy access
                     result["time_values"] = time_values
                     
-                    logger.info(f"Payment request created successfully. Payment ID: {new_payment_id}")
+                    #logger.info(f"Payment request created successfully. Payment ID: {new_payment_id}")
                     logger.debug(f"Time values: {time_values}")
                     logger.debug(f"Full payment response: {result}")
                     return result
@@ -208,7 +208,7 @@ class Payment:
                     result = await response.json()
                     logger.debug(f"Received status response: {result}")
                     
-                    payments = result.get("data", {}).get("payments", [])
+                    payments = result.get("data", {}).get("Payments", [])
                     for payment in payments:
                         payment_id = payment["blockchainIdentifier"]
                         status = payment["NextAction"]["requestedAction"]

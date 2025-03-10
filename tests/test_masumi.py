@@ -75,9 +75,15 @@ async def test_agent():
         name=_agent_name,
         config=config,
         description="Test agent for automated testing",
-        example_output="Example output from test agent",
+        example_output=[
+            {
+                "name": "example_output_name",
+                "url": "https://example.com/example_output",
+                "mimeType": "application/json"
+            }
+        ],
         tags=["test", "automated"],
-        api_url="http://example.com/api",
+        api_base_url="http://example.com/api",
         author_name="Test Author",
         author_contact="test@example.com",
         author_organization="Test Organization",
@@ -144,11 +150,11 @@ async def test_check_registration_status(test_agent):
             assert "status" in result, "Response missing 'status' field"
             assert result["status"] == "success", "Status is not 'success'"
             assert "data" in result, "Response missing 'data' field"
-            assert "assets" in result["data"], "Response data missing 'assets' field"
+            assert "Assets" in result["data"], "Response data missing 'Assets' field"
             
             # Verify our agent exists in the list
             agent_found = False
-            for asset in result["data"]["assets"]:
+            for asset in result["data"]["Assets"]:
                 if asset["name"] == agent.name and asset["state"] == "RegistrationConfirmed":
                     agent_found = True
                         # Store the agent ID for future tests
@@ -254,7 +260,7 @@ async def test_check_existing_payment_status(payment):
     
     # Get the ID from the previous test and add it to payment_ids
     payment_id = test_create_payment_request_success.last_payment_id
-    logger.info(f"Checking status for payment: {payment_id}")
+    #logger.info(f"Checking status for payment: {payment_id}")
     payment.payment_ids.add(payment_id)  # Add the ID to the new payment instance
     
     # Check the payment status
@@ -263,11 +269,11 @@ async def test_check_existing_payment_status(payment):
     
     # Verify the response
     assert "data" in status_result
-    assert "payments" in status_result["data"]
+    assert "Payments" in status_result["data"]
     
     # Find our payment in the list
     payment_found = False
-    for payment_status in status_result["data"]["payments"]:
+    for payment_status in status_result["data"]["Payments"]:
         if payment_status["blockchainIdentifier"] == payment_id:
             payment_found = True
             logger.info(f"Found payment status: {payment_status['NextAction']['requestedAction']}")
@@ -406,11 +412,11 @@ async def test_check_purchase_status(test_agent, payment):
             assert "status" in result, "Response missing 'status' field"
             assert result["status"] == "success", "Status is not 'success'"
             assert "data" in result, "Response missing 'data' field"
-            assert "payments" in result["data"], "Response missing 'payments' field"
+            assert "Payments" in result["data"], "Response missing 'payments' field"
             
             # Look for our payment in the list by blockchain ID
             payment_found = False
-            for payment_status in result["data"]["payments"]:
+            for payment_status in result["data"]["Payments"]:
                 if payment_status["blockchainIdentifier"] == blockchain_id:
                     payment_found = True
                     #logger.info(f"Found payment with blockchain ID: {blockchain_id}")
@@ -503,7 +509,7 @@ async def test_complete_payment(test_agent, payment):
         final_status = await payment.check_payment_status()
         
         # Look for our payment in the list
-        for payment_status in final_status["data"]["payments"]:
+        for payment_status in final_status["data"]["Payments"]:
             if payment_status["blockchainIdentifier"] == blockchain_id:
                 # Check the final status
                 if "onChainState" in payment_status:
@@ -564,7 +570,7 @@ async def test_monitor_payment_status(test_agent, payment):
                 
                 # Look for our payment in the list
                 payment_found = False
-                for payment_status in result["data"]["payments"]:
+                for payment_status in result["data"]["Payments"]:
                     if payment_status["blockchainIdentifier"] == blockchain_id:
                         payment_found = True
                         #logger.info(f"Found payment with blockchain ID: {blockchain_id}")

@@ -4,8 +4,8 @@ class Config:
     """
     Centralized configuration for the masumi_crewai package.
     """
-    DEFAULT_PREPROD_ADDRESS = "addr_test1wzlwhustapq9ck0zdz8dahhwd350nzlpg785nz7hs0tqjtgdy4230"
-    DEFAULT_MAINNET_ADDRESS = "addr1wyv9sc853kpurfdqv5f02tmmlscez20ks0p5p6aj76j0xac365skm"
+    DEFAULT_PREPROD_ADDRESS = "addr_test1wq6r27mhqc754xelkw294dd20g4989r3r6ah23328w327gssudk7y"
+    DEFAULT_MAINNET_ADDRESS = "addr1wy6r27mhqc754xelkw294dd20g4989r3r6ah23328w327gst5e23p"
     
     def __init__(self, payment_service_url: str, payment_api_key: str,
                  registry_service_url: str = None, registry_api_key: str = None,
