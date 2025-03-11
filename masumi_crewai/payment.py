@@ -182,7 +182,13 @@ class Payment:
         """
         if not self.payment_ids:
             logger.warning("Attempted to check payment status with no payment IDs")
-            raise ValueError("No payment IDs available")
+            # Instead of raising an error, return an empty response structure
+            return {
+                "status": "success",
+                "data": {
+                    "Payments": []
+                }
+            }
 
         logger.debug(f"Checking status for payment IDs: {self.payment_ids}")
         
@@ -208,18 +214,8 @@ class Payment:
                     result = await response.json()
                     logger.debug(f"Received status response: {result}")
                     
-                    payments = result.get("data", {}).get("Payments", [])
-                    for payment in payments:
-                        payment_id = payment["blockchainIdentifier"]
-                        status = payment["NextAction"]["requestedAction"]
-                        logger.debug(f"Received status response: {status}")
-
-                        if payment_id in self.payment_ids:
-                            logger.debug(f"Payment {payment_id} status: {status}")
-                            if status == "CONFIRMED":
-                                logger.info(f"Payment {payment_id} confirmed, removing from tracking")
-                                self.payment_ids.remove(payment_id)
-                    
+                    # Don't automatically remove payments here - let the monitoring task handle that
+                    # Just return the result for processing by the caller
                     return result
         except aiohttp.ClientError as e:
             logger.error(f"Network error during status check: {str(e)}")
@@ -308,18 +304,23 @@ class Payment:
                         logger.warning("No payment IDs to monitor, waiting for next interval")
                     else:
                         result = await self.check_payment_status()
-                        logger.info(f"Status check completed, found {len(result.get('data', {}).get('payments', []))} payments")
+                        payments = result.get("data", {}).get("Payments", [])
+                        logger.info(f"Status check completed, found {len(payments)} payments")
                         
                         # Process each payment in the response
-                        for payment in result.get('data', {}).get('payments', []):
-                            payment_id = payment.get('blockchainIdentifier')
+                        for payment in payments:
+                            payment_id = payment.get("blockchainIdentifier")
                             if payment_id in self.payment_ids:
-                                status = payment.get('NextAction', {}).get('requestedAction', 'Unknown')
-                                on_chain_state = payment.get('onChainState', 'Unknown')
-                                logger.info(f"Payment {payment_id}: Status={status}, OnChainState={on_chain_state}")
+                                on_chain_state = payment.get("onChainState")
+                                next_action = payment.get("NextAction", {}).get("requestedAction")
+                                logger.info(f"Payment {payment_id}: onChainState={on_chain_state}, NextAction={next_action}")
                                 
-                                # Check if payment is completed
-                                if status in ["PaymentComplete", "None"] or on_chain_state == "FundsLocked":
+                                # Check if payment is completed - either by onChainState or NextAction
+                                if (on_chain_state == "FundsLocked" or 
+                                    on_chain_state == "Complete" or
+                                    next_action == "PaymentComplete" or 
+                                    next_action == "None"):
+                                    
                                     logger.info(f"Payment {payment_id} completed, removing from tracking")
                                     self.payment_ids.remove(payment_id)
                                     
