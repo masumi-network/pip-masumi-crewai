@@ -1,0 +1,6 @@
+aiohttp>=3.8.0
+pytest>=7.0.0
+pytest-asyncio>=0.18.0
+python-dotenv>=0.19.0
+hashlib  # This is part of Python's standard library, no need to add to requirements.txt
+logging  # This is part of Python's standard library, no need to add to requirements.txt 
